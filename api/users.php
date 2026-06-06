@@ -10,14 +10,11 @@ define("RAW_INPUT", json_decode($input, true) ?? []);
 require_once 'db.php';
 require_once 'functions.php';
 
-// 1. IMPORTANTE: Leggi i dati JSON inviati da Postman
-$input = json_decode(file_get_contents('php://input'), true);
-
-
 $database = new Database();
 $conn = $database->connect();
 
 $method = $_SERVER['REQUEST_METHOD'];
+$data = RAW_INPUT;
 
 switch ($method) {
     case 'GET':
@@ -29,22 +26,18 @@ switch ($method) {
         break;
 
     case 'POST':
-        // Verifichiamo se è un LOGIN
-        if (isset($input['action']) && $input['action'] === 'login') {
-            loginUser($conn, $input); // Passiamo i dati decodificati alla funzione di login
-            return;
-        } // RESET PASSWORD
-        if (isset($input['action']) && $input['action'] === 'reset_password') {
-            resetPassword($conn, $input);
+        if (isset($data['action']) && $data['action'] === 'login') {
+            loginUser($conn, $data);
             return;
         }
-
-        // Verifichiamo se è un UPDATE tramite POST (tipico dei form)
-        elseif (!empty($input['id']) || !empty($_POST['id'])) {
+        if (isset($data['action']) && $data['action'] === 'reset_password') {
+            resetPassword($conn, $data);
+            return;
+        }
+        elseif (!empty($data['id'])) {
             updateUser($conn);
             return;
         }
-        // Altrimenti è una REGISTRAZIONE standard
         else {
             insertUser($conn);
         }
@@ -68,7 +61,6 @@ switch ($method) {
 
 function getAllUsers($conn)
 {
-    // Aggiunti nome e cognome nella SELECT
     $stmt = $conn->prepare("SELECT id, nickname, nome, cognome, email, created_at FROM users");
     $stmt->execute();
 
@@ -82,7 +74,6 @@ function getAllUsers($conn)
 
 function getSingleUser($conn, $id)
 {
-    // Aggiunti nome e cognome nella SELECT
     $stmt = $conn->prepare("SELECT id, nickname, nome, cognome, email, created_at FROM users WHERE id = ?");
     $stmt->execute([$id]);
 
@@ -101,38 +92,34 @@ function getSingleUser($conn, $id)
     }
 }
 
-// La funzione insertUser ora utilizza la funzione di validazione centralizzata
 function insertUser($conn)
 {
-    $data = RAW_INPUT; // Utilizziamo RAW_INPUT per ottenere i dati JSON decodificati
+    $data = RAW_INPUT;
 
-    // 1. PULIZIA DATI
     $cleanData = [
         'nickname' => trim($data['nickname'] ?? ''),
-        'nome' => ucwords(strtolower(trim($data['nome'] ?? ''))),
-        'cognome' => ucwords(strtolower(trim($data['cognome'] ?? ''))),
-        'email' => strtolower(trim($data['email'] ?? '')),
+        'nome'     => ucwords(strtolower(trim($data['nome'] ?? ''))),
+        'cognome'  => ucwords(strtolower(trim($data['cognome'] ?? ''))),
+        'email'    => strtolower(trim($data['email'] ?? '')),
         'password' => $data['password'] ?? ''
     ];
 
     $dominio = substr(strrchr($cleanData['email'], "@"), 1);
     $validationError = validateUserData($conn, $cleanData, $dominio);
 
-    // Rimuoviamo l'assegnazione iniziale inutile e dichiariamo la variabile
     $response = [];
 
     if ($validationError) {
         if ($validationError === "DOMINIO_NON_AUTORIZZATO") {
             $response = [
-                "status" => false,
-                "message" => "Spiacenti, dominio non autorizzato.",
+                "status"         => false,
+                "message"        => "Spiacenti, dominio non autorizzato.",
                 "domini_accettati" => DOMINI_PERMESSI
             ];
         } else {
             $response = ["status" => false, "message" => $validationError];
         }
     } else {
-        // 3. ESECUZIONE (Se non ci sono errori)
         $hashedPassword = password_hash($cleanData['password'], PASSWORD_DEFAULT);
         $stmt = $conn->prepare("INSERT INTO users(nickname, nome, cognome, email, password) VALUES(?,?,?,?,?)");
         $success = $stmt->execute([
@@ -143,8 +130,13 @@ function insertUser($conn)
             $hashedPassword
         ]);
 
+        if ($success) {
+            file_put_contents('C:/laragon/www/login-register/debug.txt', date('H:i:s') . " - sendWelcomeEmail chiamata per: " . $cleanData['email'] . "\n", FILE_APPEND);
+            sendWelcomeEmail($cleanData['email'], $cleanData['nickname']);
+        }
+
         $response = [
-            "status" => $success,
+            "status"  => $success,
             "message" => $success ? "Utente creato con successo!" : "Errore durante la creazione!"
         ];
     }
@@ -152,19 +144,17 @@ function insertUser($conn)
     echo json_encode($response);
 }
 
-
 function updateUser($conn)
 {
     $response = ["status" => false, "message" => ""];
     $source = !empty($_POST) ? $_POST : RAW_INPUT;
 
-    $id = trim($source['id'] ?? '');
+    $id       = trim($source['id'] ?? '');
     $nickname = trim($source['nickname'] ?? '');
-    $nome = trim($source['nome'] ?? '');
-    $cognome = trim($source['cognome'] ?? '');
-    $email = strtolower(trim($source['email'] ?? ''));
+    $nome     = trim($source['nome'] ?? '');
+    $cognome  = trim($source['cognome'] ?? '');
+    $email    = strtolower(trim($source['email'] ?? ''));
 
-    // 1. Validazione base
     $error = validateUpdateUserData($id, $nickname, $nome, $cognome, $email);
     if ($error !== "") {
         $response["message"] = $error;
@@ -172,7 +162,6 @@ function updateUser($conn)
         return;
     }
 
-    // 2. Controllo unicità
     $error = checkUpdateUserUniqueness($conn, $id, $nickname, $email);
     if ($error !== "") {
         $response["message"] = $error;
@@ -180,7 +169,6 @@ function updateUser($conn)
         return;
     }
 
-    // 3. UPDATE
     $stmt = $conn->prepare(
         "UPDATE users
          SET nickname = ?, nome = ?, cognome = ?, email = ?, updated_at = NOW()
@@ -195,8 +183,7 @@ function updateUser($conn)
         return;
     }
 
-    // 4. Successo
-    $response["status"] = true;
+    $response["status"]  = true;
     $response["message"] = "Dati utente aggiornati con successo!";
     echo json_encode($response);
 }
@@ -205,10 +192,9 @@ function deleteUser($conn)
 {
     $data = RAW_INPUT;
 
-    // 1. Controllo se l'ID è presente
     if (empty($data['id'])) {
         echo json_encode([
-            "status" => false,
+            "status"  => false,
             "message" => "ID utente richiesto!"
         ]);
         return;
@@ -216,21 +202,17 @@ function deleteUser($conn)
 
     $id = $data['id'];
 
-    // 2. Eseguo la DELETE
     $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
     $stmt->execute([$id]);
 
-    // 3. Controllo REALE: quante righe sono state cancellate?
     if ($stmt->rowCount() > 0) {
-        // Se rowCount > 0, l'utente esisteva ed è stato eliminato
         echo json_encode([
-            "status" => true,
+            "status"  => true,
             "message" => "Utente con ID $id eliminato con successo!"
         ]);
     } else {
-        // Se rowCount è 0, la query è OK ma l'ID non c'era nel DB
         echo json_encode([
-            "status" => false,
+            "status"  => false,
             "message" => "Errore: l'utente con ID $id non esiste!"
         ]);
     }

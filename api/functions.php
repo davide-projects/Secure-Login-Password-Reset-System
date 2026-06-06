@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../config.php';
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
 
 
 // ============================================================
@@ -113,8 +115,8 @@ function loginUser($conn, $data)
         return;
     }
 
-    $email    = strtolower(trim($data['email']));
-    $ip       = $_SERVER['REMOTE_ADDR'];
+    $email = strtolower(trim($data['email']));
+    $ip = $_SERVER['REMOTE_ADDR'];
     $response = processLogin($conn, $email, $data['password'], $ip);
 
     echo json_encode($response);
@@ -155,10 +157,10 @@ function handleLoginResult($conn, $user, $password, $email, $ip)
 
     registerLoginAttempt($conn, $ip, $email, true);
 
-    $_SESSION['user_id']  = $user['id'];
+    $_SESSION['user_id'] = $user['id'];
     $_SESSION['nickname'] = $user['nickname'];
-    $_SESSION['nome']     = $user['nome'];
-    $_SESSION['cognome']  = $user['cognome'];
+    $_SESSION['nome'] = $user['nome'];
+    $_SESSION['cognome'] = $user['cognome'];
 
     return ["status" => true, "message" => "Login effettuato! Benvenuto " . $user['nickname']];
 }
@@ -230,7 +232,7 @@ function validateUserUniqueness($conn, $data)
 
 function validateResetEmail($email)
 {
-    $error  = null;
+    $error = null;
     $dominio = substr(strrchr($email, "@"), 1);
 
     if ($email === "") {
@@ -277,10 +279,10 @@ function userExistsForReset($conn, $email)
 
 function resetPassword($conn, $data)
 {
-    $email    = strtolower(trim($data['email'] ?? ''));
+    $email = strtolower(trim($data['email'] ?? ''));
     $password = $data['password'] ?? '';
-    $confirm  = $data['confirm_password'] ?? '';
-    $ip       = $_SERVER['REMOTE_ADDR'];
+    $confirm = $data['confirm_password'] ?? '';
+    $ip = $_SERVER['REMOTE_ADDR'];
 
     $response = processPasswordReset($conn, $email, $password, $confirm, $ip);
 
@@ -315,14 +317,14 @@ function validateAndReset($conn, $email, $password, $confirm, $ip)
 
 function performPasswordUpdate($conn, $email, $password, $ip)
 {
-    $hashed  = password_hash($password, PASSWORD_DEFAULT);
-    $stmt    = $conn->prepare("UPDATE users SET password = ?, updated_at = NOW() WHERE email = ?");
+    $hashed = password_hash($password, PASSWORD_DEFAULT);
+    $stmt = $conn->prepare("UPDATE users SET password = ?, updated_at = NOW() WHERE email = ?");
     $success = $stmt->execute([$hashed, $email]);
 
     registerLoginAttempt($conn, $ip, $email, $success);
 
     return [
-        "status"  => $success,
+        "status" => $success,
         "message" => $success
             ? "Password aggiornata con successo!"
             : "Errore durante l'aggiornamento"
@@ -360,4 +362,142 @@ function checkUpdateUserUniqueness($conn, $id, $nickname, $email)
     }
 
     return null;
+}
+
+
+// Configurazione STMP (Per mail personalizzata)
+function getSmtpConfig(): array
+{
+    return [
+        'host' => 'localhost',
+        'username' => '',
+        'password' => '',
+        'port' => 1025,
+        'secure' => '',
+        'from_email' => 'davide.barbieri1@outlook.it',
+        'from_name' => 'Monsters University'
+    ];
+}
+
+
+function sendWelcomeEmail(string $email, string $nickname): bool
+{
+    require_once __DIR__ . "/lib/PHPMailer/PHPMailer.php";
+    require_once __DIR__ . "/lib/PHPMailer/SMTP.php";
+    require_once __DIR__ . "/lib/PHPMailer/Exception.php";
+
+    $config = getSmtpConfig();
+    $mail = new PHPMailer(true);
+
+    try {
+        $mail->CharSet = 'UTF-8';
+
+        $mail->isSMTP();
+        $mail->Host       = 'localhost';
+        $mail->SMTPAuth   = false;
+        $mail->SMTPSecure = false;
+        $mail->Port       = 1025;
+
+        $mail->SMTPOptions = [
+            'ssl' => [
+                'verify_peer'       => false,
+                'verify_peer_name'  => false,
+                'allow_self_signed' => true,
+            ]
+        ];
+
+        $mail->setFrom($config['from_email'], $config['from_name']);
+        $mail->addAddress($email);
+
+        $mail->isHTML(true);
+        $mail->Subject = 'Benvenuto su Monsters University!';
+        $mail->Body    = getWelcomeEmailTemplate($nickname);
+
+        $result = $mail->send();
+
+        if (!$result) {
+            error_log("Mailer Error: " . $mail->ErrorInfo);
+        }
+
+        return $result;
+
+    } catch (Exception $e) {
+        error_log("Mailer Exception: " . $e->getMessage());
+        return false;
+    }
+}
+
+
+
+function getWelcomeEmailTemplate(string $nickname): string
+{
+    return "
+    <div style='margin:0; padding:0; background-color:#F4F6F8; font-family:Arial, sans-serif;'>
+        <div style='max-width:600px; margin:0 auto; padding:40px 20px;'>
+
+            <!-- HEADER -->
+            <div style='background:linear-gradient(135deg, #2C3E50, #3B5998); border-radius:12px 12px 0 0;
+                        padding:35px 30px; text-align:center;'>
+                <h1 style='color:white; margin:0; font-size:26px; letter-spacing:1px;'>
+                    Monsters University
+                </h1>
+                <p style='color:rgba(255,255,255,0.75); margin:8px 0 0; font-size:14px;'>
+                    Secure Login System
+                </p>
+            </div>
+
+            <!-- BODY -->
+            <div style='background:white; padding:35px 30px; border-left:1px solid #E0E0E0;
+                        border-right:1px solid #E0E0E0;'>
+
+                <h2 style='color:#2C3E50; margin-top:0; font-size:22px;'>
+                    Benvenuto, {$nickname}!
+                </h2>
+
+                <p style='font-size:16px; color:#555; line-height:1.6;'>
+                    Il tuo account e' stato creato con successo. Ora fai ufficialmente parte
+                    della nostra community e puoi accedere alla tua area riservata.
+                </p>
+
+                <p style='font-size:16px; color:#555; line-height:1.6;'>
+                    Inizia la tua avventura nel mondo della sicurezza informatica, in stile Monsters!
+                </p>
+
+                <!-- CTA -->
+                <div style='text-align:center; margin:30px 0;'>
+                    <a href='http://login-register.test/login.php'
+                       style='background:#3B5998; color:white; padding:14px 32px; border-radius:6px;
+                              text-decoration:none; font-size:16px; font-weight:bold; display:inline-block;'>
+                        Accedi ora
+                    </a>
+                </div>
+
+                <!-- TIP BOX -->
+                <div style='background:#F8F9FA; border-left:4px solid #3B5998; border-radius:4px;
+                            padding:15px 20px; margin:25px 0;'>
+                    <strong style='color:#2C3E50; font-size:14px;'>Consiglio di sicurezza</strong><br>
+                    <span style='color:#555; font-size:14px; line-height:1.6;'>
+                        Mantieni sempre sicure le tue credenziali e non condividere mai la tua password
+                        con nessuno, nemmeno con il nostro staff.
+                    </span>
+                </div>
+
+                <p style='font-size:14px; color:#555; line-height:1.6;'>
+                    Grazie per esserti registrato!<br>
+                    <strong style='color:#2C3E50;'>Il team di Monsters University</strong>
+                </p>
+            </div>
+
+            <!-- FOOTER -->
+            <div style='background:#F4F6F8; border:1px solid #E0E0E0; border-top:none;
+                        border-radius:0 0 12px 12px; padding:20px 30px; text-align:center;'>
+                <p style='font-size:12px; color:#999; margin:0; line-height:1.6;'>
+                    Questa e' un'email automatica, ti preghiamo di non rispondere a questo messaggio.<br>
+                    &copy; 2026 Monsters University – Secure Login System
+                </p>
+            </div>
+
+        </div>
+    </div>
+    ";
 }

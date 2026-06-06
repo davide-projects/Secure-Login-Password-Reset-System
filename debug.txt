@@ -1,0 +1,6 @@
+10:50:35 - users.php caricato
+10:50:36 - sendWelcomeEmail chiamata per: davide.babieri2@outlook.it
+10:55:43 - users.php caricato
+10:55:43 - sendWelcomeEmail chiamata per: davide.babieri1@outlook.it
+11:00:22 - users.php caricato
+11:00:22 - sendWelcomeEmail chiamata per: davide.babieri1@outlook.it

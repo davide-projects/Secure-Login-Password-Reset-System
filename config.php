@@ -2,7 +2,7 @@
 $host = "localhost";
 $dbname = "monsters_university";
 $username = "root";
-$password = "";
+$password = "root";
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -12,7 +12,7 @@ if (session_status() === PHP_SESSION_NONE) {
 define('DB_NAME', 'monsters_university');
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_PASS', 'root');
 
 // --- CONFIGURAZIONI GLOBALI DI VALIDAZIONE ---
 define('MIN_CHARS_NOMI', 2); // Esempio: nome e cognome di almeno 2 caratteri

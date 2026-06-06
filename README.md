@@ -7,6 +7,7 @@ Sistema di autenticazione moderno, modulare e sicuro, sviluppato in **PHP + API 
 ## 🚀 Caratteristiche principali
  
 - Login API-based (nessuna logica nel form, tutto centralizzato in `/api/users.php`)
+- Registrazione API-based con invio automatico di **email di benvenuto** (PHPMailer + SMTP)
 - Reset password API-based con pagina di esito dedicata
 - **Protezione anti-bruteforce avanzata**
   - Blocco email dopo X tentativi falliti
@@ -32,22 +33,24 @@ Sistema di autenticazione moderno, modulare e sicuro, sviluppato in **PHP + API 
     db.php
     functions.php
     users.php
- 
-/css
-    style.css
+    /lib
+        /PHPMailer
+            PHPMailer.php
+            SMTP.php
+            Exception.php
  
 /javascript
     login.js
     reset_validation.js
  
-/views
-    login.php
-    register.php
-    password_reset_form.php
-    dashboard.php
- 
 password_reset.php
-index.php
+password_reset_form.php
+register.php
+login.php
+dashboard.php
+index.html
+config.php
+style.css
 README.md
 ```
  
@@ -79,7 +82,46 @@ Ogni tentativo viene registrato nella tabella `login_attempts` con:
  
 ---
  
+## 📧 Sistema email
+ 
+Il progetto integra **PHPMailer** per l'invio di email transazionali tramite SMTP.
+ 
+### ✔ Email di benvenuto
+Inviata automaticamente al completamento della registrazione, contiene:
+- Saluto personalizzato con il nickname dell'utente
+- Conferma creazione account
+- Consiglio sulla sicurezza delle credenziali
+### ⚙️ Configurazione SMTP
+Le credenziali SMTP sono centralizzate in `getSmtpConfig()` dentro `api/functions.php`.
+ 
+Per lo sviluppo locale è consigliato **Mailpit** (integrato in Laragon):
+ 
+```php
+'host'     => 'localhost',
+'port'     => 1025,
+'secure'   => '',
+'username' => '',
+'password' => '',
+```
+ 
+Per la produzione sostituire con le credenziali di un provider SMTP reale (Mailtrap Live, SendGrid, Brevo, ecc.).
+ 
+---
+ 
 ## 🧩 API Endpoints
+ 
+### 🔹 Registrazione
+`POST /api/users.php`
+ 
+```json
+{
+  "nickname": "MikeMazz",
+  "nome": "Mike",
+  "cognome": "Mazzosky",
+  "email": "mike@gmail.com",
+  "password": "Password123"
+}
+```
  
 ### 🔹 Login
 `POST /api/users.php`
@@ -108,6 +150,9 @@ Ogni tentativo viene registrato nella tabella `login_attempts` con:
  
 ## 🖥️ Frontend
  
+### ✔ Registrazione (fetch API)
+Il form invia i dati come JSON all'API tramite `fetch()`, riceve la risposta e mostra il messaggio senza reload. In caso di successo reindirizza al login dopo 2 secondi.
+ 
 ### ✔ Login (fetch API)
 Il form non invia dati via POST tradizionale: usa `fetch()` per chiamare l'API e mostrare i messaggi in pagina senza reload.
  
@@ -135,6 +180,7 @@ Il form invia i dati a `password_reset.php`, che:
 | Reset password con errori | ✅ |
 | Reset password corretto | ✅ |
 | Redirect e messaggi | ✅ |
+| Registrazione con email di benvenuto | ✅ |
  
 ---
  
@@ -144,6 +190,7 @@ Il form invia i dati a `password_reset.php`, che:
 - MySQL / MariaDB
 - Apache (Laragon consigliato)
 - Estensione cURL attiva
+- PHPMailer (incluso in `/api/lib/PHPMailer`)
 ---
  
 ## 📦 Installazione
@@ -152,10 +199,11 @@ Il form invia i dati a `password_reset.php`, che:
    ```bash
    git clone https://github.com/tuo-utente/tuo-repo.git
    ```
-2. Importa il database
+2. Crea il database ed esegui `database.sql`
 3. Configura `api/db.php` con le tue credenziali
-4. Avvia il server locale
-5. Apri nel browser:
+4. Configura `getSmtpConfig()` in `api/functions.php` con le credenziali SMTP
+5. Avvia il server locale
+6. Apri nel browser:
    ```
    http://login-register.test/login.php
    ```
@@ -164,16 +212,15 @@ Il form invia i dati a `password_reset.php`, che:
  
 ## 🧑‍💻 Autore
  
-**Davide** — Junior Full-Stack Developer & Workflow Architect  
-Appassionato di sicurezza, architetture modulari e clean code.
+**Davide** — Junior Full-Stack Developer & Workflow Architect
  
 ---
  
 ## 🔮 Sviluppi futuri
  
+- [ ] Notifica email al reset password completato
+- [ ] Token sicuro per il reset password (link con scadenza via email)
 - [ ] Integrazione con sito vetrina
 - [ ] Dashboard utente avanzata
 - [ ] Log attività utente
-- [ ] Notifiche email (SMTP)
-- [ ] Token reset password
 - [ ] Rate limiting distribuito (Redis)
